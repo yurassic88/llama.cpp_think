@@ -113,10 +113,18 @@ struct common_sampler {
 
     llama_token_data_array cur_p;
 
+    llama_token thinking_token_start_id;
+    llama_token thinking_token_end_id;
+    bool        is_thinking;
+    int32_t     thinking_count;
+
     void reset() {
         prev.clear();
 
         llama_sampler_reset(chain);
+
+        is_thinking    = false;
+        thinking_count = 0;
     }
 
     void set_logits(struct llama_context * ctx, int idx) {
@@ -342,7 +350,28 @@ struct common_sampler * common_sampler_init(const struct llama_model * model, st
         /* .prev    = */ ring_buffer<llama_token>(std::max(32, params.n_prev)),
         /* .cur     = */ {},
         /* .cur_p   = */ {},
+        /* .thinking_token_start_id = */ -1,
+        /* .thinking_token_end_id   = */ -1,
+        /* .is_thinking    = */ false,
+        /* .thinking_count = */ 0,
     };
+
+    if (params.thinking_budget > 0) {
+        auto tokens_start = common_tokenize(vocab, params.thinking_token_start, false, true);
+        auto tokens_end   = common_tokenize(vocab, params.thinking_token_end,   false, true);
+
+        if (tokens_start.size() == 1) {
+            result->thinking_token_start_id = tokens_start[0];
+        } else {
+            LOG_WRN("%s: thinking start token '%s' tokenized to %zu tokens, ignoring\n", __func__, params.thinking_token_start.c_str(), tokens_start.size());
+        }
+
+        if (tokens_end.size() == 1) {
+            result->thinking_token_end_id = tokens_end[0];
+        } else {
+            LOG_WRN("%s: thinking end token '%s' tokenized to %zu tokens, ignoring\n", __func__, params.thinking_token_end.c_str(), tokens_end.size());
+        }
+    }
 
     return result;
 }
@@ -372,6 +401,19 @@ void common_sampler_accept(struct common_sampler * gsmpl, llama_token token, boo
     llama_sampler_accept(gsmpl->chain, token);
 
     gsmpl->prev.push_back(token);
+
+    if (gsmpl->params.thinking_budget > 0) {
+        if (token == gsmpl->thinking_token_start_id) {
+            gsmpl->is_thinking = true;
+            gsmpl->thinking_count = 0;
+            LOG_INF("beginning of the thinking - budget: %d\n", gsmpl->params.thinking_budget);
+        } else if (token == gsmpl->thinking_token_end_id) {
+            gsmpl->is_thinking = false;
+            LOG_INF("end : final number of thinking tokens: %d\n", gsmpl->thinking_count);
+        } else if (gsmpl->is_thinking) {
+            gsmpl->thinking_count++;
+        }
+    }
 }
 
 void common_sampler_reset(struct common_sampler * gsmpl) {
@@ -390,6 +432,10 @@ struct common_sampler * common_sampler_clone(common_sampler * gsmpl) {
         /* .prev    = */ gsmpl->prev,
         /* .cur     = */ gsmpl->cur,
         /* .cur_p   = */ gsmpl->cur_p,
+        /* .thinking_token_start_id = */ gsmpl->thinking_token_start_id,
+        /* .thinking_token_end_id   = */ gsmpl->thinking_token_end_id,
+        /* .is_thinking    = */ gsmpl->is_thinking,
+        /* .thinking_count = */ gsmpl->thinking_count,
     };
 }
 
@@ -478,6 +524,15 @@ llama_token common_sampler_sample(struct common_sampler * gsmpl, struct llama_co
     }
 
     gsmpl->set_logits(ctx, idx);
+
+    if (gsmpl->params.thinking_budget > 0 && gsmpl->is_thinking && gsmpl->thinking_count < gsmpl->params.thinking_budget) {
+        for (size_t i = 0; i < cur_p.size; ++i) {
+            if (cur_p.data[i].id == gsmpl->thinking_token_end_id) {
+                cur_p.data[i].logit = -INFINITY;
+                break;
+            }
+        }
+    }
 
     if (grammar_first) {
         llama_sampler_apply(grmr, &cur_p);
