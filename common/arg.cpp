@@ -1756,6 +1756,27 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         }
     ).set_sparam());
     add_opt(common_arg(
+        {"--thinking-budget"}, "N",
+        string_format("number of thinking tokens (default: %d, 0 = disabled)", params.sampling.thinking_budget),
+        [](common_params & params, int value) {
+            params.sampling.thinking_budget = value;
+        }
+    ).set_sparam());
+    add_opt(common_arg(
+        {"--thinking-token-start"}, "STRING",
+        string_format("start token for thinking (default: '%s')", params.sampling.thinking_token_start.c_str()),
+        [](common_params & params, const std::string & value) {
+            params.sampling.thinking_token_start = value;
+        }
+    ).set_sparam());
+    add_opt(common_arg(
+        {"--thinking-token-end"}, "STRING",
+        string_format("end token for thinking (default: '%s')", params.sampling.thinking_token_end.c_str()),
+        [](common_params & params, const std::string & value) {
+            params.sampling.thinking_token_end = value;
+        }
+    ).set_sparam());
+    add_opt(common_arg(
         {"--dynatemp-range"}, "N",
         string_format("dynamic temperature range (default: %.2f, 0.0 = disabled)", (double)params.sampling.dynatemp_range),
         [](common_params & params, const std::string & value) {
