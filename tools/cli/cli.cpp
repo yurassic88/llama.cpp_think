@@ -68,6 +68,10 @@ struct cli_context {
         // defaults.return_progress = true; // TODO: show progress
     }
 
+    void set_thinking_budget(int32_t budget) {
+        defaults.thinking_budget = budget;
+    }
+
     std::string generate_completion(result_timings & out_timings) {
         server_response_reader rd = ctx_server.get_response_reader();
         auto chat_params = format_chat();
@@ -325,6 +329,21 @@ int main(int argc, char ** argv) {
         // remove trailing newline
         if (!buffer.empty() &&buffer.back() == '\n') {
             buffer.pop_back();
+        }
+
+        // check if thinking budget is set via prompt
+        if (buffer.size() > 2 && buffer[0] == '[') {
+            size_t end = buffer.find(']');
+            if (end != std::string::npos) {
+                std::string budget_str = buffer.substr(1, end - 1);
+                try {
+                    int budget = std::stoi(budget_str);
+                    ctx_cli.set_thinking_budget(budget);
+                    buffer = string_strip(buffer.substr(end + 1));
+                } catch (const std::exception &) {
+                    // ignore
+                }
+            }
         }
 
         // skip empty messages

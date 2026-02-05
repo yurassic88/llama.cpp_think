@@ -446,7 +446,7 @@ struct llama_sampler * common_sampler_get(const struct common_sampler * gsmpl) {
     return gsmpl->chain;
 }
 
-llama_token common_sampler_sample(struct common_sampler * gsmpl, struct llama_context * ctx, int idx, bool grammar_first) {
+llama_token common_sampler_sample(struct common_sampler * gsmpl, struct llama_context * ctx, int idx, bool grammar_first, const std::vector<llama_token> & banned_tokens) {
     llama_synchronize(ctx);
 
     // start measuring sampling time after the llama_context synchronization in order to not measure any ongoing async operations
@@ -478,6 +478,18 @@ llama_token common_sampler_sample(struct common_sampler * gsmpl, struct llama_co
     }
 
     gsmpl->set_logits(ctx, idx);
+
+    // ban tokens
+    if (!banned_tokens.empty()) {
+        for (size_t i = 0; i < cur_p.size; ++i) {
+            for (const auto & token : banned_tokens) {
+                if (cur_p.data[i].id == token) {
+                    cur_p.data[i].logit = -INFINITY;
+                    break;
+                }
+            }
+        }
+    }
 
     if (grammar_first) {
         llama_sampler_apply(grmr, &cur_p);
