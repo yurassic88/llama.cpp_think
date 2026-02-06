@@ -11,18 +11,34 @@
 		hasRegularContent?: boolean;
 		isStreaming?: boolean;
 		reasoningContent: string | null;
+		thinkingBudget?: number;
+		thinkingTokenCount?: number;
 	}
 
 	let {
 		class: className = '',
 		hasRegularContent = false,
 		isStreaming = false,
-		reasoningContent
+		reasoningContent,
+		thinkingBudget,
+		thinkingTokenCount
 	}: Props = $props();
 
 	const currentConfig = config();
 
 	let isExpanded = $state(currentConfig.showThoughtInProgress);
+
+	let thinkingColorClass = $derived.by(() => {
+		if (thinkingTokenCount !== undefined && thinkingBudget !== undefined && thinkingBudget > 0) {
+			if (thinkingTokenCount > thinkingBudget) {
+				return 'text-red-500';
+			}
+			if (thinkingTokenCount > 0) {
+				return 'text-green-500';
+			}
+		}
+		return 'text-muted-foreground';
+	});
 
 	$effect(() => {
 		if (hasRegularContent && reasoningContent && currentConfig.showThoughtInProgress) {
@@ -34,11 +50,16 @@
 <Collapsible.Root bind:open={isExpanded} class="mb-6 {className}">
 	<Card class="gap-0 border-muted bg-muted/30 py-0">
 		<Collapsible.Trigger class="flex cursor-pointer items-center justify-between p-3">
-			<div class="flex items-center gap-2 text-muted-foreground">
+			<div class="flex items-center gap-2 {thinkingColorClass}">
 				<Brain class="h-4 w-4" />
 
 				<span class="text-sm font-medium">
 					{isStreaming ? 'Reasoning...' : 'Reasoning'}
+					{#if thinkingBudget && thinkingBudget > 0 && thinkingTokenCount !== undefined}
+						<span class="ml-1 opacity-70">
+							[{thinkingTokenCount} / {thinkingBudget}]
+						</span>
+					{/if}
 				</span>
 			</div>
 

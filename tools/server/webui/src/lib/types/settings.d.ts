@@ -53,6 +53,7 @@ export interface SettingsChatServiceOptions {
 	onToolCallChunk?: (chunk: string) => void;
 	onModel?: (model: string) => void;
 	onTimings?: (timings?: ChatMessageTimings, promptProgress?: ChatMessagePromptProgress) => void;
+	onThinkingUpdate?: (count: number, budget: number) => void;
 	onComplete?: (
 		response: string,
 		reasoningContent?: string,

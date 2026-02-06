@@ -951,6 +951,28 @@ json oaicompat_chat_params_parse(
 
     common_chat_templates_inputs inputs;
     inputs.messages              = common_chat_msgs_parse_oaicompat(messages);
+
+    // Check for [N] thinking budget in the last user message
+    if (!inputs.messages.empty()) {
+        auto & last_msg = inputs.messages.back();
+        if (last_msg.role == "user" && !last_msg.content.empty()) {
+            size_t start_bracket = last_msg.content.find('[');
+            if (start_bracket == 0) {
+                size_t end_bracket = last_msg.content.find(']');
+                if (end_bracket != std::string::npos) {
+                    std::string budget_str = last_msg.content.substr(1, end_bracket - 1);
+                    try {
+                        int budget = std::stoi(budget_str);
+                        llama_params["thinking_budget"] = budget;
+                        last_msg.content = string_strip(last_msg.content.substr(end_bracket + 1));
+                    } catch (...) {
+                        // ignore
+                    }
+                }
+            }
+        }
+    }
+
     inputs.tools                 = common_chat_tools_parse_oaicompat(tools);
     inputs.tool_choice           = common_chat_tool_choice_parse_oaicompat(tool_choice);
     inputs.json_schema           = json_schema.is_null() ? "" : json_schema.dump();

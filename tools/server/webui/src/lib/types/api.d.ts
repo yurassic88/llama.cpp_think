@@ -256,6 +256,10 @@ export interface ApiChatCompletionStreamChunk {
 		cache_n?: number;
 	};
 	prompt_progress?: ChatMessagePromptProgress;
+	thinking?: {
+		budget: number;
+		count: number;
+	};
 }
 
 export interface ApiChatCompletionResponse {

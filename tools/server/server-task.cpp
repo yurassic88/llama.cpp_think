@@ -1364,6 +1364,13 @@ json server_task_result_cmpl_partial::to_json_oaicompat() {
         {"id",                 oaicompat_cmpl_id}
     };
 
+    if (thinking_budget > 0) {
+        res["thinking"] = {
+            {"budget", thinking_budget},
+            {"count", n_thinking_tokens},
+        };
+    }
+
     // extra fields for debugging purposes
     if (verbose) {
         res["__verbose"] = to_json_non_oaicompat();
@@ -1427,6 +1434,13 @@ json server_task_result_cmpl_partial::to_json_oaicompat_chat() {
         }
         if (is_progress) {
             last_json.push_back({"prompt_progress", progress.to_json()});
+        }
+
+        if (thinking_budget > 0) {
+            last_json["thinking"] = {
+                {"budget", thinking_budget},
+                {"count", n_thinking_tokens},
+            };
         }
     }
 

@@ -1439,6 +1439,9 @@ private:
         res->oaicompat_model   = slot.task->params.oaicompat_model;
         res->oaicompat_cmpl_id = slot.task->params.oaicompat_cmpl_id;
 
+        res->thinking_budget   = slot.task->params.thinking_budget;
+        res->n_thinking_tokens = slot.n_thinking_tokens;
+
         // populate res.probs_output
         if (slot.task->params.sampling.n_probs > 0) {
             res->prob_output = tkn; // copy the token probs
@@ -1486,6 +1489,9 @@ private:
         res->res_type          = slot.task->params.res_type;
         res->oaicompat_model   = slot.task->params.oaicompat_model;
         res->oaicompat_cmpl_id = slot.task->params.oaicompat_cmpl_id;
+
+        res->thinking_budget   = slot.task->params.thinking_budget;
+        res->n_thinking_tokens = slot.n_thinking_tokens;
 
         // populate res.probs_output
         if (slot.task->params.sampling.n_probs > 0) {
