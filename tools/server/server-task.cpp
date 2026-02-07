@@ -355,6 +355,8 @@ task_params server_task::params_from_json_cmpl(
         if (data.contains("chat_parser")) {
             params.chat_parser_params.parser.load(data.at("chat_parser").get<std::string>());
         }
+        params.chat_parser_params.thinking_token_start = params_base.thinking_token_start;
+        params.chat_parser_params.thinking_token_end   = params_base.thinking_token_end;
     }
 
     {

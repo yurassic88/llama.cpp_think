@@ -181,6 +181,8 @@ struct common_chat_parser_params {
     bool                     reasoning_in_content  = false;
     bool                     thinking_forced_open  = false;
     bool                     parse_tool_calls      = true;
+    std::string              thinking_token_start  = "<think>";
+    std::string              thinking_token_end    = "</think>";
     common_peg_arena         parser                = {};
     common_chat_parser_params() = default;
     common_chat_parser_params(const common_chat_params & chat_params) {

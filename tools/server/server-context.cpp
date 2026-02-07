@@ -650,11 +650,11 @@ private:
         add_bos_token = llama_vocab_get_add_bos(vocab);
 
         {
-            auto tokens = common_tokenize(vocab, "<think>", false);
+            auto tokens = common_tokenize(vocab, params_base.thinking_token_start, false);
             if (tokens.size() == 1) {
                 id_think = tokens[0];
             }
-            tokens = common_tokenize(vocab, "</think>", false);
+            tokens = common_tokenize(vocab, params_base.thinking_token_end, false);
             if (tokens.size() == 1) {
                 id_think_end = tokens[0];
             }

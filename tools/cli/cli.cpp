@@ -58,6 +58,8 @@ struct cli_context {
 
     cli_context(const common_params & params) {
         defaults.sampling    = params.sampling;
+        defaults.sampling.thinking_token_start = params.thinking_token_start;
+        defaults.sampling.thinking_token_end   = params.thinking_token_end;
         defaults.speculative = params.speculative;
         defaults.n_keep      = params.n_keep;
         defaults.n_predict   = params.n_predict;
@@ -88,6 +90,8 @@ struct cli_context {
             // chat template settings
             task.params.chat_parser_params = common_chat_parser_params(chat_params);
             task.params.chat_parser_params.reasoning_format = COMMON_REASONING_FORMAT_DEEPSEEK;
+            task.params.chat_parser_params.thinking_token_start = defaults.sampling.thinking_token_start;
+            task.params.chat_parser_params.thinking_token_end   = defaults.sampling.thinking_token_end;
             if (!chat_params.parser.empty()) {
                 task.params.chat_parser_params.parser.load(chat_params.parser);
             }

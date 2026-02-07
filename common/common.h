@@ -231,6 +231,9 @@ struct common_params_sampling {
     std::vector<common_grammar_trigger> grammar_triggers; // optional triggers (for lazy grammars)
     std::set<llama_token>               preserved_tokens;
 
+    std::string thinking_token_start = "<think>"; // token to start thinking
+    std::string thinking_token_end   = "</think>"; // token to end thinking
+
     std::vector<llama_logit_bias> logit_bias;     // logit biases to apply
     std::vector<llama_logit_bias> logit_bias_eog; // pre-calculated logit biases for EOG tokens
 
@@ -419,6 +422,8 @@ struct common_params {
     std::string path_prompt_cache    = ""; // path to file for saving/loading prompt eval state             // NOLINT
     std::string input_prefix         = ""; // string to prefix user inputs with                             // NOLINT
     std::string input_suffix         = ""; // string to suffix user inputs with                             // NOLINT
+    std::string thinking_token_start = "<think>"; // token to start thinking                                // NOLINT
+    std::string thinking_token_end   = "</think>"; // token to end thinking                                 // NOLINT
     std::string logits_file          = ""; // file for saving *all* logits                                  // NOLINT
 
     // llama-debug specific options
