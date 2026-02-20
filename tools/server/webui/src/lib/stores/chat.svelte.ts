@@ -493,6 +493,8 @@ class ChatStore {
 		let streamedContent = '';
 		let streamedReasoningContent = '';
 		let streamedToolCallContent = '';
+		let streamedThinkingBudget: number | undefined;
+		let streamedThinkingTokenCount: number | undefined;
 		let resolvedModel: string | null = null;
 		let modelPersisted = false;
 
@@ -541,6 +543,15 @@ class ChatStore {
 					conversationsStore.updateMessageAtIndex(idx, { toolCalls: streamedToolCallContent });
 				},
 				onModel: (modelName: string) => recordModel(modelName),
+				onThinkingUpdate: (count: number, budget: number) => {
+					streamedThinkingBudget = budget;
+					streamedThinkingTokenCount = count;
+					const idx = conversationsStore.findMessageIndex(assistantMessage.id);
+					conversationsStore.updateMessageAtIndex(idx, {
+						thinkingBudget: budget,
+						thinkingTokenCount: count
+					});
+				},
 				onTimings: (timings?: ChatMessageTimings, promptProgress?: ChatMessagePromptProgress) => {
 					const tokensPerSecond =
 						timings?.predicted_ms && timings?.predicted_n
@@ -570,7 +581,9 @@ class ChatStore {
 						content: finalContent || streamedContent,
 						thinking: reasoningContent || streamedReasoningContent,
 						toolCalls: toolCallContent || streamedToolCallContent,
-						timings
+						timings,
+						thinkingBudget: streamedThinkingBudget,
+						thinkingTokenCount: streamedThinkingTokenCount
 					};
 					if (resolvedModel && !modelPersisted) {
 						updateData.model = resolvedModel;
@@ -584,6 +597,8 @@ class ChatStore {
 					};
 					if (timings) uiUpdate.timings = timings;
 					if (resolvedModel) uiUpdate.model = resolvedModel;
+					if (streamedThinkingBudget !== undefined) uiUpdate.thinkingBudget = streamedThinkingBudget;
+					if (streamedThinkingTokenCount !== undefined) uiUpdate.thinkingTokenCount = streamedThinkingTokenCount;
 
 					conversationsStore.updateMessageAtIndex(idx, uiUpdate);
 					await conversationsStore.updateCurrentNode(assistantMessage.id);

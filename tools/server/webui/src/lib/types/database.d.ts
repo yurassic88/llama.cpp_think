@@ -67,6 +67,8 @@ export interface DatabaseMessage {
 	extra?: DatabaseMessageExtra[];
 	timings?: ChatMessageTimings;
 	model?: string;
+	thinkingBudget?: number;
+	thinkingTokenCount?: number;
 }
 
 /**

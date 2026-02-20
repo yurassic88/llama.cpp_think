@@ -281,6 +281,8 @@
 		{showDeleteDialog}
 		{siblingInfo}
 		{thinkingContent}
+		thinkingBudget={message.thinkingBudget}
+		thinkingTokenCount={message.thinkingTokenCount}
 		{toolCallContent}
 	/>
 {/if}

@@ -157,6 +157,10 @@ struct server_slot {
 
     std::function<void(int /* id_slot */)> callback_on_release;
 
+    // thinking stats
+    bool thinking = false;
+    int32_t n_thinking_tokens = 0;
+
     // Speculative decoding stats
     int32_t n_draft_total = 0;      // Total draft tokens generated
     int32_t n_draft_accepted = 0;   // Draft tokens actually accepted
@@ -183,6 +187,10 @@ struct server_slot {
         // clear speculative decoding stats
         n_draft_total = 0;
         n_draft_accepted = 0;
+
+        // clear thinking stats
+        thinking = false;
+        n_thinking_tokens = 0;
 
         task_prev = std::move(task);
         task.reset();
@@ -562,6 +570,9 @@ private:
 
     bool add_bos_token  = true;
 
+    llama_token id_think     = -1;
+    llama_token id_think_end = -1;
+
     int32_t n_ctx; // total context for all clients / slots
 
     // slots / clients
@@ -637,6 +648,17 @@ private:
         n_ctx = llama_n_ctx(ctx);
 
         add_bos_token = llama_vocab_get_add_bos(vocab);
+
+        {
+            auto tokens = common_tokenize(vocab, params_base.thinking_token_start, false);
+            if (tokens.size() == 1) {
+                id_think = tokens[0];
+            }
+            tokens = common_tokenize(vocab, params_base.thinking_token_end, false);
+            if (tokens.size() == 1) {
+                id_think_end = tokens[0];
+            }
+        }
 
         if (params_base.speculative.has_dft()) {
             SRV_INF("loading draft model '%s'\n", params_base.speculative.mparams_dft.path.c_str());
@@ -1417,6 +1439,9 @@ private:
         res->oaicompat_model   = slot.task->params.oaicompat_model;
         res->oaicompat_cmpl_id = slot.task->params.oaicompat_cmpl_id;
 
+        res->thinking_budget   = slot.task->params.thinking_budget;
+        res->n_thinking_tokens = slot.n_thinking_tokens;
+
         // populate res.probs_output
         if (slot.task->params.sampling.n_probs > 0) {
             res->prob_output = tkn; // copy the token probs
@@ -1464,6 +1489,9 @@ private:
         res->res_type          = slot.task->params.res_type;
         res->oaicompat_model   = slot.task->params.oaicompat_model;
         res->oaicompat_cmpl_id = slot.task->params.oaicompat_cmpl_id;
+
+        res->thinking_budget   = slot.task->params.thinking_budget;
+        res->n_thinking_tokens = slot.n_thinking_tokens;
 
         // populate res.probs_output
         if (slot.task->params.sampling.n_probs > 0) {
@@ -2724,6 +2752,26 @@ private:
                     // prompt evaluated for next-token prediction
                     slot.state = SLOT_STATE_GENERATING;
 
+                    // check if the prompt ended with a thinking token
+                    if (id_think != -1 && id_think_end != -1 && slot.task->params.thinking_budget > 0) {
+                        int n_think     = 0;
+                        int n_think_end = 0;
+
+                        for (size_t i = 0; i < slot.prompt.tokens.size(); ++i) {
+                            if (slot.prompt.tokens[i] == id_think) {
+                                n_think++;
+                            } else if (slot.prompt.tokens[i] == id_think_end) {
+                                n_think_end++;
+                            }
+                        }
+
+                        slot.thinking = n_think > n_think_end;
+
+                        if (slot.thinking) {
+                            SLT_INF(slot, "prompt ended in thinking state, budget: %d\n", slot.task->params.thinking_budget);
+                        }
+                    }
+
                     if (slot.can_speculate()) {
                         common_speculative_begin(slot.spec, slot.prompt.tokens.get_text_tokens());
                     }
@@ -2737,7 +2785,24 @@ private:
 
                 const int tok_idx = slot.i_batch - i;
 
-                llama_token id = common_sampler_sample(slot.smpl.get(), ctx, tok_idx);
+                std::vector<llama_token> banned_tokens;
+                if (id_think_end != -1 && slot.thinking && slot.n_thinking_tokens < slot.task->params.thinking_budget) {
+                    banned_tokens.push_back(id_think_end);
+                }
+
+                llama_token id = common_sampler_sample(slot.smpl.get(), ctx, tok_idx, false, banned_tokens);
+
+                if (id_think != -1 && id == id_think) {
+                    slot.thinking = true;
+                    SLT_INF(slot, "thinking started, budget: %d\n", slot.task->params.thinking_budget);
+                } else if (id_think_end != -1 && id == id_think_end) {
+                    slot.thinking = false;
+                    SLT_INF(slot, "thinking finished, final number of thinking tokens: %d\n", slot.n_thinking_tokens);
+                }
+
+                if (slot.thinking) {
+                    slot.n_thinking_tokens++;
+                }
 
                 slot.i_batch = -1;
 
@@ -3476,6 +3541,25 @@ void server_routes::init_routes() {
 
         // validate input
         json data = json::parse(req.body);
+
+        // check if thinking budget is set via prompt
+        if (data.contains("prompt") && data.at("prompt").is_string()) {
+            std::string prompt = data.at("prompt");
+            if (prompt.size() > 2 && prompt[0] == '[') {
+                size_t end = prompt.find(']');
+                if (end != std::string::npos) {
+                    std::string budget_str = prompt.substr(1, end - 1);
+                    try {
+                        int budget = std::stoi(budget_str);
+                        data["thinking_budget"] = budget;
+                        data["prompt"] = string_strip(prompt.substr(end + 1));
+                    } catch (const std::exception &) {
+                        // ignore
+                    }
+                }
+            }
+        }
+
         if (data.contains("prompt") && !data.at("prompt").is_string()) {
             // prompt is optional
             res->error(format_error_response("\"prompt\" must be a string", ERROR_TYPE_INVALID_REQUEST));
@@ -3537,7 +3621,26 @@ void server_routes::init_routes() {
     this->post_completions = [this](const server_http_req & req) {
         auto res = create_response();
         std::vector<raw_buffer> files; // dummy
-        const json body = json::parse(req.body);
+        json body = json::parse(req.body);
+
+        // check if thinking budget is set via prompt
+        if (body.contains("prompt") && body.at("prompt").is_string()) {
+            std::string prompt = body.at("prompt");
+            if (prompt.size() > 2 && prompt[0] == '[') {
+                size_t end = prompt.find(']');
+                if (end != std::string::npos) {
+                    std::string budget_str = prompt.substr(1, end - 1);
+                    try {
+                        int budget = std::stoi(budget_str);
+                        body["thinking_budget"] = budget;
+                        body["prompt"] = string_strip(prompt.substr(end + 1));
+                    } catch (const std::exception &) {
+                        // ignore
+                    }
+                }
+            }
+        }
+
         return handle_completions_impl(
             req,
             SERVER_TASK_TYPE_COMPLETION,
@@ -3549,7 +3652,26 @@ void server_routes::init_routes() {
     this->post_completions_oai = [this](const server_http_req & req) {
         auto res = create_response();
         std::vector<raw_buffer> files; // dummy
-        const json body = json::parse(req.body);
+        json body = json::parse(req.body);
+
+        // check if thinking budget is set via prompt
+        if (body.contains("prompt") && body.at("prompt").is_string()) {
+            std::string prompt = body.at("prompt");
+            if (prompt.size() > 2 && prompt[0] == '[') {
+                size_t end = prompt.find(']');
+                if (end != std::string::npos) {
+                    std::string budget_str = prompt.substr(1, end - 1);
+                    try {
+                        int budget = std::stoi(budget_str);
+                        body["thinking_budget"] = budget;
+                        body["prompt"] = string_strip(prompt.substr(end + 1));
+                    } catch (const std::exception &) {
+                        // ignore
+                    }
+                }
+            }
+        }
+
         return handle_completions_impl(
             req,
             SERVER_TASK_TYPE_COMPLETION,

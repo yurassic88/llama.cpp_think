@@ -3025,6 +3025,20 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         }
     ).set_examples({LLAMA_EXAMPLE_SERVER, LLAMA_EXAMPLE_COMPLETION, LLAMA_EXAMPLE_CLI}).set_env("LLAMA_ARG_THINK_BUDGET"));
     add_opt(common_arg(
+        {"--thinking-token-start"}, "STRING",
+        string_format("token to start thinking (default: '%s')", params.thinking_token_start.c_str()),
+        [](common_params & params, const std::string & value) {
+            params.thinking_token_start = value;
+        }
+    ).set_examples({LLAMA_EXAMPLE_SERVER, LLAMA_EXAMPLE_COMPLETION, LLAMA_EXAMPLE_CLI}).set_env("LLAMA_ARG_THINKING_TOKEN_START"));
+    add_opt(common_arg(
+        {"--thinking-token-end"}, "STRING",
+        string_format("token to end thinking (default: '%s')", params.thinking_token_end.c_str()),
+        [](common_params & params, const std::string & value) {
+            params.thinking_token_end = value;
+        }
+    ).set_examples({LLAMA_EXAMPLE_SERVER, LLAMA_EXAMPLE_COMPLETION, LLAMA_EXAMPLE_CLI}).set_env("LLAMA_ARG_THINKING_TOKEN_END"));
+    add_opt(common_arg(
         {"--chat-template"}, "JINJA_TEMPLATE",
         string_format(
             "set custom jinja chat template (default: template taken from model's metadata)\n"

@@ -63,6 +63,7 @@ export class ChatService {
 			onToolCallChunk,
 			onModel,
 			onTimings,
+			onThinkingUpdate,
 			// Generation parameters
 			temperature,
 			max_tokens,
@@ -199,6 +200,7 @@ export class ChatService {
 					onToolCallChunk,
 					onModel,
 					onTimings,
+					onThinkingUpdate,
 					conversationId,
 					signal
 				);
@@ -276,6 +278,7 @@ export class ChatService {
 		onToolCallChunk?: (chunk: string) => void,
 		onModel?: (model: string) => void,
 		onTimings?: (timings?: ChatMessageTimings, promptProgress?: ChatMessagePromptProgress) => void,
+		onThinkingUpdate?: (count: number, budget: number) => void,
 		conversationId?: string,
 		abortSignal?: AbortSignal
 	): Promise<void> {
@@ -363,6 +366,7 @@ export class ChatService {
 							const toolCalls = parsed.choices[0]?.delta?.tool_calls;
 							const timings = parsed.timings;
 							const promptProgress = parsed.prompt_progress;
+							const thinking = parsed.thinking;
 
 							const chunkModel = ChatService.extractModelName(parsed);
 							if (chunkModel && !modelEmitted) {
@@ -377,6 +381,10 @@ export class ChatService {
 							if (timings) {
 								ChatService.notifyTimings(timings, promptProgress, onTimings);
 								lastTimings = timings;
+							}
+
+							if (thinking) {
+								onThinkingUpdate?.(thinking.count, thinking.budget);
 							}
 
 							if (content) {

@@ -65,6 +65,7 @@ json task_params::to_json(bool only_metrics) const {
             {"n_predict",                 n_predict}, // TODO: deduplicate?
             {"n_keep",                    n_keep},
             {"n_discard",                 n_discard},
+            {"thinking_budget",           thinking_budget},
             {"ignore_eos",                sampling.ignore_eos},
             {"stream",                    stream},
             {"n_probs",                   sampling.n_probs},
@@ -124,6 +125,7 @@ json task_params::to_json(bool only_metrics) const {
         {"n_predict",                 n_predict}, // TODO: deduplicate?
         {"n_keep",                    n_keep},
         {"n_discard",                 n_discard},
+        {"thinking_budget",           thinking_budget},
         {"ignore_eos",                sampling.ignore_eos},
         {"stream",                    stream},
         {"logit_bias",                format_logit_bias(sampling.logit_bias)},
@@ -210,6 +212,7 @@ task_params server_task::params_from_json_cmpl(
     params.n_indent         = json_value(data,       "n_indent",           defaults.n_indent);
     params.n_keep           = json_value(data,       "n_keep",             defaults.n_keep);
     params.n_discard        = json_value(data,       "n_discard",          defaults.n_discard);
+    params.thinking_budget  = json_value(data,       "thinking_budget",    defaults.thinking_budget);
     params.n_cmpl           = json_value(data,       "n_cmpl",             json_value(data, "n", 1));
     params.n_cache_reuse    = json_value(data,       "n_cache_reuse",      defaults.n_cache_reuse);
     //params.t_max_prompt_ms  = json_value(data,       "t_max_prompt_ms",    defaults.t_max_prompt_ms); // TODO: implement
@@ -352,6 +355,8 @@ task_params server_task::params_from_json_cmpl(
         if (data.contains("chat_parser")) {
             params.chat_parser_params.parser.load(data.at("chat_parser").get<std::string>());
         }
+        params.chat_parser_params.thinking_token_start = params_base.thinking_token_start;
+        params.chat_parser_params.thinking_token_end   = params_base.thinking_token_end;
     }
 
     {
@@ -1361,6 +1366,13 @@ json server_task_result_cmpl_partial::to_json_oaicompat() {
         {"id",                 oaicompat_cmpl_id}
     };
 
+    if (thinking_budget > 0) {
+        res["thinking"] = {
+            {"budget", thinking_budget},
+            {"count", n_thinking_tokens},
+        };
+    }
+
     // extra fields for debugging purposes
     if (verbose) {
         res["__verbose"] = to_json_non_oaicompat();
@@ -1424,6 +1436,13 @@ json server_task_result_cmpl_partial::to_json_oaicompat_chat() {
         }
         if (is_progress) {
             last_json.push_back({"prompt_progress", progress.to_json()});
+        }
+
+        if (thinking_budget > 0) {
+            last_json["thinking"] = {
+                {"budget", thinking_budget},
+                {"count", n_thinking_tokens},
+            };
         }
     }
 

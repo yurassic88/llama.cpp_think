@@ -52,6 +52,8 @@
 		siblingInfo?: ChatMessageSiblingInfo | null;
 		textareaElement?: HTMLTextAreaElement;
 		thinkingContent: string | null;
+		thinkingBudget?: number | null;
+		thinkingTokenCount?: number | null;
 		toolCallContent: ApiChatCompletionToolCall[] | string | null;
 	}
 
@@ -80,6 +82,8 @@
 		siblingInfo = null,
 		textareaElement = $bindable(),
 		thinkingContent,
+		thinkingBudget,
+		thinkingTokenCount,
 		toolCallContent = null
 	}: Props = $props();
 
@@ -184,6 +188,8 @@
 	{#if thinkingContent}
 		<ChatMessageThinkingBlock
 			reasoningContent={thinkingContent}
+			thinkingBudget={thinkingBudget || undefined}
+			thinkingTokenCount={thinkingTokenCount || undefined}
 			isStreaming={!message.timestamp}
 			hasRegularContent={!!messageContent?.trim()}
 		/>

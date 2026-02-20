@@ -58,6 +58,8 @@ struct cli_context {
 
     cli_context(const common_params & params) {
         defaults.sampling    = params.sampling;
+        defaults.sampling.thinking_token_start = params.thinking_token_start;
+        defaults.sampling.thinking_token_end   = params.thinking_token_end;
         defaults.speculative = params.speculative;
         defaults.n_keep      = params.n_keep;
         defaults.n_predict   = params.n_predict;
@@ -66,6 +68,10 @@ struct cli_context {
         defaults.stream = true; // make sure we always use streaming mode
         defaults.timings_per_token = true; // in order to get timings even when we cancel mid-way
         // defaults.return_progress = true; // TODO: show progress
+    }
+
+    void set_thinking_budget(int32_t budget) {
+        defaults.thinking_budget = budget;
     }
 
     std::string generate_completion(result_timings & out_timings) {
@@ -84,6 +90,8 @@ struct cli_context {
             // chat template settings
             task.params.chat_parser_params = common_chat_parser_params(chat_params);
             task.params.chat_parser_params.reasoning_format = COMMON_REASONING_FORMAT_DEEPSEEK;
+            task.params.chat_parser_params.thinking_token_start = defaults.sampling.thinking_token_start;
+            task.params.chat_parser_params.thinking_token_end   = defaults.sampling.thinking_token_end;
             if (!chat_params.parser.empty()) {
                 task.params.chat_parser_params.parser.load(chat_params.parser);
             }
@@ -325,6 +333,21 @@ int main(int argc, char ** argv) {
         // remove trailing newline
         if (!buffer.empty() &&buffer.back() == '\n') {
             buffer.pop_back();
+        }
+
+        // check if thinking budget is set via prompt
+        if (buffer.size() > 2 && buffer[0] == '[') {
+            size_t end = buffer.find(']');
+            if (end != std::string::npos) {
+                std::string budget_str = buffer.substr(1, end - 1);
+                try {
+                    int budget = std::stoi(budget_str);
+                    ctx_cli.set_thinking_budget(budget);
+                    buffer = string_strip(buffer.substr(end + 1));
+                } catch (const std::exception &) {
+                    // ignore
+                }
+            }
         }
 
         // skip empty messages
